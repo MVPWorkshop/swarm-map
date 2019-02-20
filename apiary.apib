@@ -1,0 +1,443 @@
+FORMAT: 1A
+
+# Swarm Market Access Protocol
+
+
+The Swarm Fund MAP aims to allow:
+
+- Qualification providers
+- Token issuers
+- Investors
+- Wallets
+- Exchanges
+
+to easily integrate and add the compliancy layer to any cryptocurrency based digital asset.
+
+# API structure
+
+## URL and REST structure
+
+MAP API uses HTTPS only. All requests in HTTP will be completely ignored.
+
+The API relies on REST HTTP verbs to interact with the objects in the system. 
+
+---
+
+Resource data is retrieved using the GET action.
+
+        `GET /tokenIssuer/0x1850158105223`
+        
+---
+
+Resources are created/registered using the POST action.
+
+        `POST /tokenIssuer/0x1850158105223`
+        
+If the resource already exists, it is returned in the response, but with a `200 OK` instead of a `201 Created` response code.
+
+---
+
+Relationships are created between resources using the PUT action. The exact resource on which the relationship will be attached is implicitly recognized from the successfuly authenticated user.
+
+        `PUT /tokenIssuer/qualificationAssociation`
+
+
+## Response structure
+
+
+Standard response structure will include the following header:
+
+    Content-Type: application/json
+    
+
+### Data types
+
+The response body will include a JSON encoded object of the resource requested.
+The JSON structure returned is limited to primitives (boolean, number, string) and compounds (array, objects, null).
+
+Dates and DateTime elements are explicitly expected to be formatted in ISO8601.
+
+DateTime elements accept a timezone in input but will always return a UTC formatted ISO8601 string.
+
+### Response codes and errors
+
+
+**200**: OK - the action was executed and completed
+
+**201**: Created - standard response to a POST action which also indicates that resource creation is also completed
+
+Errors are indicated by http response code along with a corresponding human readable message. Additional details will be attached as a JSON encoded resource structure.
+
+Standard errors are:
+
+**400**: Parameter validation failed
+            
+**401**: Authentication headers required or failed
+    
+**403**: Requested resource is not available for the currently authenticated user
+
+**404**: Resource not found
+
+**405**: Method not allowed
+
+**429**: Too many requests, slow down and try again later
+
+**422**: Unprocessable Entity due to payload being too large in size.
+
+**500**: Resource action failed due to internal error
+
+**503**: Resource is currently unavailable due to maintenance or overloading, please try again later
+
+## API versioning
+
+The MAP API currently does not support versioning.
+
+Versioning will be supported once there is no way around making breaking changes to develop or improve a feature.
+
+# Authentication
+
+All users using the MAP API are authenticated using their wallet address, regardless of the underlying blockchain.
+
+The authentication works simply by providing the signature of the the wallet address (public key) signed with the private key using the exact algorithm which is used for signing on the given blockchain.
+
+Whenever authentication is needed, these HTTP headers are required:
+
+| Header name      | Description                                                                                   | Example                            |
+|------------------|-----------------------------------------------------------------------------------------------|------------------------------------|
+| X-Swm-Blockchain | The underlying blockchain of the wallet, needed to determine the exact signing algorithm used | Bitcoin                            |
+| X-Swm-Address    | The public key of the wallet                                                                  | 1HZwkjkeaoZfTSaJxDw6aKkxp45agDiEzN |
+| X-Swm-Signature  | The wallet address signed by the wallet's private key                                         |  NG8tFK3dNwQaiYA0VOu...            |
+
+
+> ***WARNING:*** We **strongly** recommend generating a new wallet when first registering with MAP to prevent the case in which the signed public key which is compromised from a third-party service which uses a similar authentication scheme.
+
+***NOTE:*** Sucessfully authenticated `PUT` requests will attach a relationship to the resource owned by the authenticated user. 
+
+# Getting started
+
+## Token issuer
+
+The token issuer is the user which is able to create an asset on the MAP blockchain.
+
+**Steps to create an asset:**
+
+1. Create a new wallet on the blockchain on which you wish to create an asset, which will be used for verification. Store the keys securely. Consult [Authentication](/introduction/api/authentication).
+2. [Register](#reference/token-issuer/account/register)
+3. [Create a new asset](#reference/token-issuer/asset/create)
+4. [Attach existing Qualification Providers to be supported by the asset](#reference/token-issuer/asset/attach-qualification-provider)
+
+![Token Issuer Flow](http://swarm-map-public-images.s3-website.us-east-2.amazonaws.com/Token-issuer-light.svg)
+
+## Qualification provider
+
+The qualification provider is the user which is able to provide KYC-like compliance checks and thus is vital in the process of qualifying investors to manage a certain digital asset.
+
+**Steps to register as a qualification provider:**
+
+1. Create a new wallet on the blockchain of your choice which will be used for authentication. Store the keys securely. Consult [Authentication](/introduction/api/authentication).
+2. [Register](#reference/qualification-provider/account/register)
+3. The `domainVerificationCode` (TXT record) is returned from the registration endpoint and needs to be set-up on the desired domain to verify the Qualification Provider
+4. Once the process is set-up, you can check the status of your verification by issuing another `POST` with no body which will simply return the qualification provider object 
+
+![Qualification Provider Flow](http://swarm-map-public-images.s3-website.us-east-2.amazonaws.com/Qualification-provider-light.svg)
+
+## Investor
+
+The Investor is a person or an entity which wishes to buy tokens issued by the Token Issuer. 
+Before the Investor can buy the tokens, or in other words *invest*, a Qualification provider must acknowledge that the investor is compliant to invest in the token, according to the rules specified by the Token issuer.
+
+1. Create a new wallet on the blockchain of your choice which will be used for authentication. Store the keys securely. Consult [Authentication](/introduction/api/authentication).
+2. [Register](#reference/investor/account/register)
+3. Grab the info about the asset you wish to invest in, to see which Qualification providers are supported.
+4. Derive a new decentralized identifier from your main identity, to be used in this Qualification check.
+5. Complete the verification process on the Qualification provider's web application supplying your personal info and the derived DID (decentralized identifier).
+6. The Qualification provider will broadcast the anonymous verification, with hashed data just as a proof of check.
+7. Once the Qualification provider has broadcasted the proof of check, you can prove using your derived DID that the check belongs to you, and you can assume the check, which if is successful grants you the ability to invest in the given asset.
+
+![Investor Flow](http://swarm-map-public-images.s3-website.us-east-2.amazonaws.com/Investor-light.svg)
+
+## API integration
+
+For using the SDK and MAP API please consult the [MAP API Docs](/docs/api).
+
+## MAP Blockchain
+
+To keep track of Assets, Qualification Providers, Qualifications and Associations and at the same time having these information remain private and secure MAP is built as a decentralized network of nodes with having a blockchain as a fundamental layer. 
+All actions triggered via API are in fact at the end blockchain transactions and are associated with each address (e.g. Token Issuer's).
+
+The Swarm Fund MAP blockchain is an immutable store of records that has two basic types of transactions Qualification and Association.
+
+# Group Token Issuer
+
+## Account [/issuer]
+
+### Register [POST]
+
+Registers the token issuer with the optional IPFS hash to the arbitrary formatted metadata.
+
++ Request (application/json)
+
+    + Headers
+        
+            X-Swm-Blockchain: Bitcoin
+            X-Swm-Address: 1HZwkjkeaoZfTSaJxDw6aKkxp45agDiEzN
+            X-Swm-Signature: 1HZwkjkeaoZfTSaJxDw6aKkxp45agDiEzNG8tFK3dNwQaiYA0VOuhMBOjcdydR5gyKh/IAr9rSqDXy93cVqKDZkYv/LjfLpJ8PfJKGrUovjisT9rhMWg8Z5wM=
+    
+    + Attributes
+    
+        + name: `The user-provided arbitrary name of the token issuer` (string, required)
+        + ipfsMetadata: `The IPFS hash which contains arbitrary user-provided metadata.` (string, optional)
+
++ Response 200 (application/json)
+
+    + Attributes (Token issuer)
+    
+### Get info [GET /issuer/{mapTokenIssuerAddress}]
+
+Gets the information about the assets issued by the Token Issuer.
+
++ Response 200 (application/json)
+
+    + Attributes (Token issuer)
+
+## Asset [/asset]
+
+### Create [POST]
+
+Adds a new Asset to the MAP blockchain. The Asset is identified within the MAP with the `mapAssetAddress` which is the address of the mapped asset on the MAP blockchain.
+
++ Request (application/json)
+
+    + Headers
+    
+            X-Swm-Blockchain: Ethereum
+            X-Swm-Address: 1HZwkjkeaoZfTSaJxDw6aKkxp45agDiEzN
+            X-Swm-Signature: 1HZwkjkeaoZfTSaJxDw6aKkxp45agDiEzNG8tFK3dNwQaiYA0VOuhMBOjcdydR5gyKh/IAr9rSqDXy93cVqKDZkYv/LjfLpJ8PfJKGrUovjisT9rhMWg8Z5wM=
+    
+    + Attributes
+    
+        + name: `The user-provided arbitrary name of the asset` (string, required)
+        + ipfsMetadata: `The IPFS hash which contains arbitrary user-provided metadata.` (string, optional)
+        + smartContractAddress: The address of the smartcontract which is deployed from the address that the user authenticated with. (string, required)
+
++ Response 200 (application/json)
+    
+    + Attributes (Asset)
+    
+
++ Response 403 (application/json)
+        
+        {
+            message: "The smartcontract was not deployed by the provided authenticated address."
+        }
+
+
+### Attach qualification provider [PUT /asset/{mapAssetAddress}/supportedQualificationProviders]
+
+Attaches a previously registered Qualification Provider to the asset.
+
++ Parameters
+
+    + mapAssetAddress: The address of the smartcontract which is deployed from the address that the user authenticated with. (required)
+    
++ Request (application/json)
+
+    + Headers
+    
+            X-Swm-Blockchain: Ethereum
+            X-Swm-Address: 1HZwkjkeaoZfTSaJxDw6aKkxp45agDiEzN
+            X-Swm-Signature: 1HZwkjkeaoZfTSaJxDw6aKkxp45agDiEzNG8tFK3dNwQaiYA0VOuhMBOjcdydR5gyKh/IAr9rSqDXy93cVqKDZkYv/LjfLpJ8PfJKGrUovjisT9rhMWg8Z5wM=
+    
+    + Body
+        
+            {
+                mapQualificationProviderAddress: "3HZwkjkeaoZfTSaJxDw6aKkxp45agDiEzN" 
+            }
+        
+
+    + Attributes
+    
+        + mapQualificationProviderAddress: The IPFS hash pointing to the arbitrary metadata of the token. (optional)
+
++ Response 200
+    
+    + Attributes (Asset)
+
+# Group Qualification Provider
+
+## Account [/qp]
+
+### Register [POST]
+
+Registers the Qualification Provider with the optional IPFS hash to the arbitrary formatted metadata.
+
++ Request (application/json)
+
+    + Headers
+        
+            X-Swm-Blockchain: Bitcoin
+            X-Swm-Address: 1HZwkjkeaoZfTSaJxDw6aKkxp45agDiEzN
+            X-Swm-Signature: 1HZwkjkeaoZfTSaJxDw6aKkxp45agDiEzNG8tFK3dNwQaiYA0VOuhMBOjcdydR5gyKh/IAr9rSqDXy93cVqKDZkYv/LjfLpJ8PfJKGrUovjisT9rhMWg8Z5wM=
+    
+    + Body
+    
+            {
+                metadata: "Qmc5gCcjYypU7y28oCALwfSvxCBskLuPKWpK4qpterKC7z"
+            }
+    
+    + Attributes
+
+        + metadata: The IPFS hash pointing to the arbitrary metadata of the token issuer. (optional)
+        + domain: The fully qualified domain name which will be used in the verification process. (required)
+
++ Response 200 (application/json)
+
+    + Attributes (Qualification provider)            
+
+## Retrieve information [GET /qp/{mapQualificationProviderAddress}]
+
++ Request
+
+    + Parameters
+        + mapQualityProviderAddress: The address of the Quality Provider on the MAP blockchain.
+
++ Response 200 (application/json)
+
+    + Attributes (Qualification provider)
+    
+## Qualification [/qualification]
+
+### Broadcast [POST]
+
+Once Investor obtains info about QP by using Get Qualification Provider call, and has done all the required checks on the QP's platform to get Qualification, the QP will broadcast Qualification to MAP.
+
++ Request (application/json)
+    
+    + Headers
+
+            X-Swm-Blockchain: Bitcoin
+            X-Swm-Address: 1HZwkjkeaoZfTSaJxDw6aKkxp45agDiEzN
+            X-Swm-Signature: 1HZwkjkeaoZfTSaJxDw6aKkxp45agDiEzNG8tFK3dNwQaiYA0VOuhMBOjcdydR5gyKh/IAr9rSqDXy93cVqKDZkYv/LjfLpJ8PfJKGrUovjisT9rhMWg8Z5wM=
+    
+    + Body
+    
+            {
+                qualificationData: "0x1d4d691d0000000000000000000000001550d41be3651686e1aeeea073d8d403d0bd2e3000000000000000000000000000000000000000000000000c328093e61ee40000000000000000000000000000960b236a07cf122663c4303350609a66a7b288c000000000000000000000000038bc9915922ba42bb67a804befa510e4bbbfb4ba0000000000000000000000000000000000000000000000000c2d86e5d90486a00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000005c3dd901000000000000000000000000000000000000000000000000000000000335afd4000000000000000000000000000000000000000000000000000000000000001cd2fc85ad3c239eb9c917f2701ba9c24e6a7730b40fd6abe5eea3a0b24a4b844131eb70cd49838d8cec541c4073d209eedc4400a042c771140f86086fe2cde64d"
+                did: "4HZwkjkeaoZfTSaJxDw6aKkxp45agDiEzN"
+                qualificationHash: "0xf9925d96a17cd75d084cecafd8f630a6af9c0423306239f7e326f724891909cc"
+            }
+            
+    + Attributes
+            
+        + qualificationData: Holds specific details of this qualification.
+        + did: Public key that Investor, while doing a check on QP services, provided and which he can claim to be his own. 
+        + qualificationHash: tbd
+
++ Response 200
+
+# Group Investor
+
+## Account [/investor]
+
+### Register [POST]
+
+Registers the investor with the optional IPFS hash to the arbitrary formatted metadata.
+
++ Request (application/json)
+
+    + Headers
+        
+            X-Swm-Blockchain: Bitcoin
+            X-Swm-Address: 1HZwkjkeaoZfTSaJxDw6aKkxp45agDiEzN
+            X-Swm-Signature: 1HZwkjkeaoZfTSaJxDw6aKkxp45agDiEzNG8tFK3dNwQaiYA0VOuhMBOjcdydR5gyKh/IAr9rSqDXy93cVqKDZkYv/LjfLpJ8PfJKGrUovjisT9rhMWg8Z5wM=
+    
+    + Body
+    
+            {
+                metadata: "Qmc5gCcjYypU7y28oCALwfSvxCBskLuPKWpK4qpterKC7z",
+            }
+    
+    + Attributes
+
+        + metadata: The IPFS hash pointing to the arbitrary metadata of the investor. (optional)
+
++ Response 200 (application/json)
+
+    + Attributes (Investor)
+
+### Associate qualification [PUT /investor/qualification]
+
+Once Investor has obtained and claimed, via DID, the Qualification he can broadcast Association data connected with this Qualification via this API call. Because of this Proofs of Qualification and Association, behind the scenes Investor’s Qualification data, Wallet address, Quality provider are all connected.
+
+By sending his Address, proof of ownership for this Address, DID (public key) and proof of ownership for this DID, and finally qualificationHash, MAP system can know that this Address can be associated with specific qualification.
+
++ Request (application/json)
+
+        {
+            did: "4HZwkjkeaoZfTSaJxDw6aKkxp45agDiEzN",
+            signedDid: "4HZwkjkeaoZfTSaJxDw6aKkxp45agDiEzNG8tFK3dNwQaiYA0VOuhMBOjcdydR5gyKh/IAr9rSqDXy93cVqKDZkYv/LjfLpJ8PfJKGrUovjisT9rhMWg8Z5wM=",
+            qualificationHash: "0xf9925d96a17cd75d084cecafd8f630a6af9c0423306239f7e326f724891909cc"
+        }
+
++ Response 200
+
+# Group Public API
+
+## Check qualification for address [GET /check/{blockchain}/{address}]
+
+Check if the Wallet Address has a Qualification association.
+
++ Request
+
+    + Parameters
+        + blockchain: The blockchain which holds the given address
+        + address: The address on the given blockchain which you want to query for associations on the Swarm platform 
+        
++ Response 200 (application/json)
+
+    + Body
+            
+            {
+                mapQualificationProviderAddress: "3HZwkjkeaoZfTSaJxDw6aKkxp45agDiEzN",
+                qualificationData: "0x1d4d691d0000000000000000000000001550d41be3651686e1aeeea073d8d403d0bd2e3000000000000000000000000000000000000000000000000c328093e61ee40000000000000000000000000000960b236a07cf122663c4303350609a66a7b288c000000000000000000000000038bc9915922ba42bb67a804befa510e4bbbfb4ba0000000000000000000000000000000000000000000000000c2d86e5d90486a00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000005c3dd901000000000000000000000000000000000000000000000000000000000335afd4000000000000000000000000000000000000000000000000000000000000001cd2fc85ad3c239eb9c917f2701ba9c24e6a7730b40fd6abe5eea3a0b24a4b844131eb70cd49838d8cec541c4073d209eedc4400a042c771140f86086fe2cde64d"
+                qualificationHash: "0xf9925d96a17cd75d084cecafd8f630a6af9c0423306239f7e326f724891909cc"
+            }
+            
+
+# Data structure
+
+
+## Token issuer (object)
+
++ mapAddress: `The address of the token issuer on the MAP blockchain` (string, required)
++ name: `The user-provided arbitrary name of the token issuer` (string, required)
++ ipfsMetadata: `The IPFS hash which contains arbitrary user-provided metadata.` (string, optional)
++ assets: `The array of assets issued by the token issuer` (array[Asset], optional)
+    + (Asset)
+
+
+## Asset (object)
+
++ mapAddress: `The address of the asset on the MAP blockchain` (string, required)
++ name: `The user-provided arbitrary name of the asset` (string, required)
++ smartContractAddress: The address of the smartcontract which is deployed from the address that the user authenticated with. (string, required)
++ supportedQualificationProviders: `The list of attached qualification providers.` (array[Qualification provider], optional)
+    + (Qualification provider)
++ ipfsMetadata: `The IPFS hash which contains arbitrary user-provided metadata.` (string, optional)
+
+
+## Qualification provider (object)
+
++ name: `The user-provided arbitrary name of the qualification provider` (string, required)
++ ipfsMetadata: `The IPFS hash which contains arbitrary user-provided metadata.` (string, optional)
++ domain: `The fully qualified domain name which is verified to be in-use by the qualification provider` (string, required)
++ domainVerificationCode: `The TXT record to be added to the domain in order to complete the verification process` (string, required)
++ status: `The status of the verification process` (enum)
+    - verified
+    - unverified
+
+## Investor (object)
+
++ name: `The user-provided arbitrary name of the token issuer` (string, required)
++ ipfsMetadata: `The IPFS hash which contains arbitrary user-provided metadata.` (string, optional)
++ domain: `The fully qualified domain name which will be used for Qualification provider verification purposes.`
